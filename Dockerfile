@@ -1,27 +1,30 @@
-ARG UBUNTU_VER=20.04
-ARG CONDA_VER=latest
-ARG OS_TYPE=x86_64
-ARG PY_VER=3.9
-ARG PANDAS_VER=1.3
+FROM debian:latest
 
-FROM ubuntu:${UBUNTU_VER}
-# System packages 
-RUN apt-get update && apt-get install -yq curl wget jq vim
+#  $ docker build . -t continuumio/anaconda3:latest -t continuumio/anaconda3:5.3.0
+#  $ docker run --rm -it continuumio/anaconda3:latest /bin/bash
+#  $ docker push continuumio/anaconda3:latest
+#  $ docker push continuumio/anaconda3:5.3.0
 
-# Use the above args 
-ARG CONDA_VER
-ARG OS_TYPE
-# Install miniconda to /miniconda
-RUN curl -LO "http://repo.continuum.io/miniconda/Miniconda3-${CONDA_VER}-Linux-${OS_TYPE}.sh"
-RUN bash Miniconda3-${CONDA_VER}-Linux-${OS_TYPE}.sh -p /miniconda -b
-RUN rm Miniconda3-${CONDA_VER}-Linux-${OS_TYPE}.sh
-ENV PATH=/miniconda/bin:${PATH}
-RUN conda update -y conda
-RUN conda init
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PATH /opt/conda/bin:$PATH
 
-ARG PY_VER
-ARG PANDAS_VER
-# Install packages from conda 
-RUN conda install -c anaconda -y python=${PY_VER}
-RUN conda install -c anaconda -y \
-    pandas=${PANDAS_VER}
+RUN apt-get update --fix-missing && apt-get install -y wget bzip2 ca-certificates \
+    libglib2.0-0 libxext6 libsm6 libxrender1 \
+    git mercurial subversion
+
+RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-5.3.0-Linux-x86_64.sh -O ~/anaconda.sh && \
+    /bin/bash ~/anaconda.sh -b -p /opt/conda && \
+    rm ~/anaconda.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
+
+RUN apt-get install -y curl grep sed dpkg && \
+    TINI_VERSION=`curl https://github.com/krallin/tini/releases/latest | grep -o "/v.*\"" | sed 's:^..\(.*\).$:\1:'` && \
+    curl -L "https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini_${TINI_VERSION}.deb" > tini.deb && \
+    dpkg -i tini.deb && \
+    rm tini.deb && \
+    apt-get clean
+
+ENTRYPOINT [ "/usr/bin/tini", "--" ]
+CMD [ "/bin/bash" ]
